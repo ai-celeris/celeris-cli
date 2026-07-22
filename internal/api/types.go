@@ -76,7 +76,8 @@ type StreamChunk struct {
 		Delta struct {
 			Content string `json:"content"`
 		} `json:"delta"`
-		Text string `json:"text"`
+		Text         string `json:"text"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 }
 

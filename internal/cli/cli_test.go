@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -110,8 +111,7 @@ func TestAtFileInput(t *testing.T) {
 		var req struct {
 			Prompt string `json:"prompt"`
 		}
-		body := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(body)
+		body, _ := io.ReadAll(r.Body)
 		if err := json.Unmarshal(body, &req); err == nil {
 			gotPrompt = req.Prompt
 		}

@@ -82,7 +82,8 @@ func newChatCompletionsCommand(opts *rootOptions) *cobra.Command {
 				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
 				User:             user,
 			}
-			client := opts.client()
+			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
+			client := opts.clientForModel(model)
 			if stream {
 				handler, finish := streamRenderer(cmd.OutOrStdout(), opts.format)
 				if err := client.ChatCompletionStream(cmd.Context(), req, handler); err != nil {

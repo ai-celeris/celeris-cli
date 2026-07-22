@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -45,8 +46,7 @@ func TestChatCompletionSendsAuthAndUserAgent(t *testing.T) {
 		gotAuth = r.Header.Get("Authorization")
 		gotUA = r.Header.Get("User-Agent")
 		gotPath = r.URL.Path
-		gotBody = make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(gotBody)
+		gotBody, _ = io.ReadAll(r.Body)
 		fmt.Fprint(w, `{"id":"chatcmpl-1","model":"celeris-1","choices":[{"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}]}`)
 	}))
 	defer srv.Close()

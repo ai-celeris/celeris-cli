@@ -27,8 +27,17 @@ func newQCommand(opts *rootOptions) *cobra.Command {
   git diff --staged | celeris q "Write a one-line commit message for this diff:"
   tail -100 app.log | celeris q "Summarize the errors in this log:"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkFormat(opts.format); err != nil {
+				return err
+			}
 			if err := sampling.validate(); err != nil {
 				return err
+			}
+			// q is the pipeline shortcut, so "auto" always means plain text
+			// rather than consulting the TTY; an explicit --format still wins.
+			format := opts.format
+			if format == "auto" {
+				format = "text"
 			}
 			prompt := strings.TrimSpace(strings.Join(args, " "))
 			if stdinIsPiped() {
@@ -69,7 +78,8 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 				PresencePenalty:  floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
 				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
 			}
-			client := opts.client()
+			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
+			client := opts.clientForModel(model)
 			if noStream {
 				ctx, cancel := opts.requestContext(cmd.Context())
 				defer cancel()
@@ -77,9 +87,9 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return renderBody(cmd.OutOrStdout(), "text", body, chatText)
+				return renderBody(cmd.OutOrStdout(), format, body, chatText)
 			}
-			handler, finish := streamRenderer(cmd.OutOrStdout(), "text")
+			handler, finish := streamRenderer(cmd.OutOrStdout(), format)
 			if err := client.ChatCompletionStream(cmd.Context(), req, handler); err != nil {
 				return err
 			}

@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a capability or ergonomic improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the task, not just the proposed flag.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What command would you run, and what should it print?
+      render: shell
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround
+      description: >
+        The `celeris api` escape hatch covers endpoints the typed commands do
+        not. Does it work for your case?
