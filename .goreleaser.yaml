@@ -1,0 +1,73 @@
+# goreleaser configuration: multi-OS release binaries plus the Homebrew
+# formula published to the ai-celeris/homebrew-tools tap.
+version: 2
+
+project_name: celeris
+
+builds:
+  - id: celeris
+    main: ./cmd/celeris
+    binary: celeris
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/ai-celeris/celeris-cli/internal/version.Version={{ .Version }}
+      - -X github.com/ai-celeris/celeris-cli/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/ai-celeris/celeris-cli/internal/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+brews:
+  - name: celeris
+    repository:
+      owner: ai-celeris
+      name: homebrew-tools
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://docs.celeris.ai
+    description: Command-line interface for the Celeris inference API
+    install: |
+      bin.install "celeris"
+      generate_completions_from_executable(bin/"celeris", "completion")
+    test: |
+      assert_match "celeris", shell_output("#{bin}/celeris version")
+    commit_author:
+      name: celeris-release-bot
+      email: releases@celeris.ai
+    commit_msg_template: "celeris {{ .Tag }}"
+
+release:
+  github:
+    owner: ai-celeris
+    name: celeris-cli
+  draft: false
+  prerelease: auto
