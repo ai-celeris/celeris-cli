@@ -92,11 +92,11 @@ func TestDefaultBaseURLForModel(t *testing.T) {
 
 func TestModelPathSegment(t *testing.T) {
 	cases := map[string]string{
-		"https://inference.cloud.celeris.ai/celeris-1":    "celeris-1",
-		"https://inference.cloud.celeris.ai/celeris-1/v1": "celeris-1",
-		"https://inference.cloud.celeris.ai/celeris-2/":   "celeris-2",
-		"http://127.0.0.1:8791":                           "", // bare host: no model segment
-		"http://127.0.0.1:8791/v1":                        "",
+		"https://inference.celeris.ai/celeris-1":    "celeris-1",
+		"https://inference.celeris.ai/celeris-1/v1": "celeris-1",
+		"https://inference.celeris.ai/celeris-2/":   "celeris-2",
+		"http://127.0.0.1:8791":                     "", // bare host: no model segment
+		"http://127.0.0.1:8791/v1":                  "",
 	}
 	for in, want := range cases {
 		if got := ModelPathSegment(in); got != want {

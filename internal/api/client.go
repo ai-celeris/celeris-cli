@@ -23,7 +23,7 @@ import (
 // DefaultHost is the production Celeris inference host. Production endpoints
 // embed the model id as a path segment (https://host/<model>/v1), so the
 // endpoint a request goes to depends on the model it selects.
-const DefaultHost = "https://inference.cloud.celeris.ai"
+const DefaultHost = "https://inference.celeris.ai"
 
 // DefaultModel is the model served when nothing overrides it.
 const DefaultModel = "celeris-1"

@@ -27,7 +27,7 @@ Or download a binary archive from the
 ```sh
 export CELERIS_API_KEY="ck_..."               # from https://console.celeris.ai
 # Optional; defaults to the production endpoint for the selected model:
-export CELERIS_BASE_URL="https://inference.cloud.celeris.ai/celeris-1"
+export CELERIS_BASE_URL="https://inference.celeris.ai/celeris-1"
 ```
 
 `OPENAI_API_KEY` / `OPENAI_BASE_URL` are honored as fallbacks, and every
@@ -39,13 +39,13 @@ to other users via the process list and are saved in your shell history.
 
 ### Models live in the endpoint path
 
-Production endpoints embed the model id: `https://inference.cloud.celeris.ai/<model>/v1`.
+Production endpoints embed the model id: `https://inference.celeris.ai/<model>/v1`.
 The body's `model` field must match that path segment, so **changing the model
 changes the endpoint**. When you have not set `--base-url` or `$CELERIS_BASE_URL`,
 the CLI derives the endpoint from `--model` and this takes care of itself:
 
 ```sh
-celeris q -m celeris-2 "hello"        # → https://inference.cloud.celeris.ai/celeris-2/v1
+celeris q -m celeris-2 "hello"        # → https://inference.celeris.ai/celeris-2/v1
 ```
 
 If you *have* pinned a base URL and it names a different model than `--model`,
