@@ -55,7 +55,8 @@ homebrew_casks:
     directory: Casks
     homepage: https://docs.celeris.ai
     description: Command-line interface for the Celeris inference API
-    binary: celeris
+    binaries:
+      - celeris
     commit_author:
       name: celeris-release-bot
       email: releases@celeris.ai
