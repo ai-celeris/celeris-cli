@@ -1,0 +1,38 @@
+name: Release
+
+# Tag-driven release: pushing a v* tag builds multi-OS binaries, publishes a
+# GitHub release with archives + checksums, and pushes the Homebrew formula
+# to ai-celeris/homebrew-tools. HOMEBREW_TAP_TOKEN must be a PAT with
+# Contents: write on that tap repo.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Test before release
+        run: go test ./...
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
