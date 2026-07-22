@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "embedded",
-  "dolt_database": "celeris_cli",
-  "project_id": "8e5af138-7968-4d08-a1ac-d8a1a149c43b"
-}
