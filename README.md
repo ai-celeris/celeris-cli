@@ -82,10 +82,11 @@ with an explicit `--format json` or `--format text` when it matters. `q` is the
 exception: it prints plain text under `auto` whether or not stdout is a
 terminal, since it exists for pipelines. An explicit `--format` still wins.
 
-Celeris accepts `max_tokens` of 256, 512, 768, or 1024 only, and the CLI
-rejects any other value before sending. The 4096-token context window covers
-prompt plus completion together; the CLI does not count prompt tokens, so
-exceeding the window surfaces as an API error rather than a local one.
+`--max-tokens` defaults to 2048 and may go up to 8192, which is also the size
+of the context window shared by prompt and completion. Values above the limit
+are rejected before sending; `--max-tokens 0` omits the field entirely and
+takes whatever the service defaults to. The CLI does not count prompt tokens,
+so overrunning the window surfaces as an API error rather than a local one.
 
 Rate-limited (`429`) and `5xx` responses are retried automatically — twice by
 default, honoring `Retry-After`. Tune with `--retry N`, or `--retry 0` to

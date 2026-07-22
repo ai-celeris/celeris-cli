@@ -61,16 +61,10 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 				msgs = append(msgs, api.ChatMessage{Role: "system", Content: system})
 			}
 			msgs = append(msgs, api.ChatMessage{Role: "user", Content: prompt})
-			maxTokens := sampling.maxTokens
-			if maxTokens == 0 {
-				// q favors interactive latency; 256 is the smallest budget the
-				// service accepts and plenty for pipeline-sized answers.
-				maxTokens = 256
-			}
 			req := api.ChatCompletionRequest{
 				Model:            model,
 				Messages:         msgs,
-				MaxTokens:        maxTokens,
+				MaxTokens:        sampling.maxTokens,
 				Temperature:      floatIfSet(cmd, "temperature", sampling.temperature),
 				TopP:             floatIfSet(cmd, "top-p", sampling.topP),
 				Seed:             intIfSet(cmd, "seed", sampling.seed),

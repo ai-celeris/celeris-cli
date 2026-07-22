@@ -76,12 +76,14 @@ func TestChatCreateRequiresInput(t *testing.T) {
 }
 
 func TestMaxTokensValidation(t *testing.T) {
-	_, err := runCLI(t,
-		"chat:completions", "create",
-		"--api-key", "ck_test", "-i", "hi", "--max-tokens", "300",
-	)
-	if err == nil || !strings.Contains(err.Error(), "256, 512, 768, 1024") {
-		t.Errorf("want max-tokens usage error, got %v", err)
+	for _, n := range []string{"-1", "8193"} {
+		_, err := runCLI(t,
+			"chat:completions", "create",
+			"--api-key", "ck_test", "-i", "hi", "--max-tokens", n,
+		)
+		if err == nil || !strings.Contains(err.Error(), "between 0 and 8192") {
+			t.Errorf("--max-tokens %s: want usage error, got %v", n, err)
+		}
 	}
 }
 

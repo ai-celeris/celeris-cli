@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
 
 // samplingFlags holds the request parameters shared by both completion
 // endpoints. Pointer-valued parameters are sent only when their flag was set,
@@ -17,7 +21,8 @@ type samplingFlags struct {
 
 func (s *samplingFlags) register(cmd *cobra.Command) {
 	f := cmd.Flags()
-	f.IntVar(&s.maxTokens, "max-tokens", 0, "completion budget: 256, 512, 768, or 1024 (prompt + max-tokens <= 4096)")
+	f.IntVar(&s.maxTokens, "max-tokens", defaultMaxTokens,
+		fmt.Sprintf("completion budget, 0 to omit and take the service default (max %d, shared with the prompt)", maxTokensLimit))
 	f.Float64Var(&s.temperature, "temperature", 0, "sampling temperature")
 	f.Float64Var(&s.topP, "top-p", 0, "nucleus sampling probability mass")
 	f.IntVar(&s.seed, "seed", 0, "best-effort deterministic sampling seed")

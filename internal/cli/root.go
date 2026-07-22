@@ -105,14 +105,24 @@ func defaultModel() string {
 	return api.DefaultModel
 }
 
-// validMaxTokens are the only values the service accepts (multiples of 256
-// up to 1024); 0 means "omit from the request".
+const (
+	// defaultMaxTokens is the completion budget sent when --max-tokens is not
+	// given, so a request has a predictable output ceiling without the caller
+	// having to pick one.
+	defaultMaxTokens = 2048
+	// maxTokensLimit is the largest budget the service accepts, and also the
+	// size of the context window that prompt and completion share.
+	maxTokensLimit = 8192
+)
+
+// validateMaxTokens bounds the completion budget. 0 is legal and means "leave
+// max_tokens out of the request", deferring to whatever the service defaults
+// to; anything above the limit would be rejected server-side.
 func validateMaxTokens(n int) error {
-	switch n {
-	case 0, 256, 512, 768, 1024:
-		return nil
+	if n < 0 || n > maxTokensLimit {
+		return usageErrorf("--max-tokens must be between 0 and %d (got %d)", maxTokensLimit, n)
 	}
-	return usageErrorf("--max-tokens must be one of 256, 512, 768, 1024 (got %d)", n)
+	return nil
 }
 
 // NewRootCommand assembles the full command tree.

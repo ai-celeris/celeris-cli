@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -105,6 +107,85 @@ func TestBareHostBaseURLDoesNotWarn(t *testing.T) {
 	}
 	if strings.Contains(stderr, "warning") {
 		t.Errorf("a base URL with no model segment must not warn, stderr = %q", stderr)
+	}
+}
+
+// chatEcho answers like a chat completion and hands the request body back
+// through the returned pointer, so tests can assert on what was sent.
+func chatEcho(t *testing.T) (*httptest.Server, *[]byte) {
+	t.Helper()
+	var sent []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read request body: %v", err)
+		}
+		sent = b
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"chatcmpl-1","choices":[{"message":{"role":"assistant","content":"hi"}}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &sent
+}
+
+func sentMaxTokens(t *testing.T, body []byte) (int, bool) {
+	t.Helper()
+	var req map[string]any
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("unmarshal request %q: %v", body, err)
+	}
+	v, ok := req["max_tokens"]
+	if !ok {
+		return 0, false
+	}
+	n, ok := v.(float64)
+	if !ok {
+		t.Fatalf("max_tokens is %T, want a number", v)
+	}
+	return int(n), true
+}
+
+func TestDefaultMaxTokensIsSent(t *testing.T) {
+	// q streams by default and needs --no-stream; the resource commands only
+	// stream when asked.
+	for _, args := range [][]string{
+		{"q", "hello", "--no-stream"},
+		{"chat:completions", "create", "-i", "hello"},
+		{"completions", "create", "-p", "hello"},
+	} {
+		srv, body := chatEcho(t)
+		full := append(args, "--base-url", srv.URL, "--api-key", "ck_test")
+		if _, err := runCLI(t, full...); err != nil {
+			t.Fatalf("%v: %v", args[0], err)
+		}
+		got, ok := sentMaxTokens(t, *body)
+		if !ok || got != defaultMaxTokens {
+			t.Errorf("%v sent max_tokens=%d (present=%v), want %d", args[0], got, ok, defaultMaxTokens)
+		}
+	}
+}
+
+func TestMaxTokensZeroOmitsTheField(t *testing.T) {
+	srv, body := chatEcho(t)
+	if _, err := runCLI(t, "q", "hello",
+		"--base-url", srv.URL, "--api-key", "ck_test", "--no-stream",
+		"--max-tokens", "0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := sentMaxTokens(t, *body); ok {
+		t.Errorf("--max-tokens 0 must omit the field, sent %q", *body)
+	}
+}
+
+func TestMaxTokensAcceptsAnyValueUpToTheLimit(t *testing.T) {
+	srv, body := chatEcho(t)
+	if _, err := runCLI(t, "q", "hello",
+		"--base-url", srv.URL, "--api-key", "ck_test", "--no-stream",
+		"--max-tokens", "8192"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sentMaxTokens(t, *body); got != maxTokensLimit {
+		t.Errorf("sent max_tokens=%d, want %d", got, maxTokensLimit)
 	}
 }
 
