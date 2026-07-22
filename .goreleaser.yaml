@@ -46,24 +46,28 @@ changelog:
       - "^test:"
       - "^ci:"
 
-brews:
+homebrew_casks:
   - name: celeris
     repository:
       owner: ai-celeris
       name: homebrew-tools
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: https://docs.celeris.ai
     description: Command-line interface for the Celeris inference API
-    install: |
-      bin.install "celeris"
-      generate_completions_from_executable(bin/"celeris", "completion")
-    test: |
-      assert_match "celeris", shell_output("#{bin}/celeris version")
+    binary: celeris
     commit_author:
       name: celeris-release-bot
       email: releases@celeris.ai
     commit_msg_template: "celeris {{ .Tag }}"
+    # Release binaries are not notarized; strip the quarantine attribute so
+    # Gatekeeper does not block the first run.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/celeris"]
+          end
 
 release:
   github:
