@@ -26,7 +26,11 @@ func newModelsCommand(opts *rootOptions) *cobra.Command {
 			}
 			ctx, cancel := opts.requestContext(cmd.Context())
 			defer cancel()
-			body, err := opts.clientForModel("").Models(ctx)
+			client, err := opts.clientForModel("")
+			if err != nil {
+				return err
+			}
+			body, err := client.Models(ctx)
 			if err != nil {
 				return err
 			}

@@ -47,7 +47,11 @@ func newAPICommand(opts *rootOptions) *cobra.Command {
 			}
 			ctx, cancel := opts.requestContext(cmd.Context())
 			defer cancel()
-			resp, err := opts.clientForModel("").Raw(ctx, method, args[1], body)
+			client, err := opts.clientForModel("")
+			if err != nil {
+				return err
+			}
+			resp, err := client.Raw(ctx, method, args[1], body)
 			if err != nil {
 				return err
 			}

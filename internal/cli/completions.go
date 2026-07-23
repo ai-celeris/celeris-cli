@@ -49,7 +49,10 @@ func newCompletionsCommand(opts *rootOptions) *cobra.Command {
 				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
 			}
 			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
-			client := opts.clientForModel(model)
+			client, err := opts.clientForModel(model)
+			if err != nil {
+				return err
+			}
 			if stream {
 				handler, finish := streamRenderer(cmd.OutOrStdout(), opts.format)
 				if err := client.CompletionStream(cmd.Context(), req, handler); err != nil {

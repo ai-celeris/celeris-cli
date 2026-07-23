@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ai-celeris/celeris-cli/internal/api"
@@ -29,6 +31,7 @@ type rootOptions struct {
 	format  string
 	debug   bool
 	timeout time.Duration
+	headers []string
 	retries int
 }
 
@@ -63,15 +66,56 @@ func (o *rootOptions) resolvedBaseURL(model string) string {
 
 // clientForModel builds a client aimed at the endpoint serving model.
 // Commands with no model concept (models, api) pass "".
-func (o *rootOptions) clientForModel(model string) *api.Client {
+func (o *rootOptions) clientForModel(model string) (*api.Client, error) {
 	var debug io.Writer
 	if o.debug {
 		debug = os.Stderr
 	}
+	headers, err := parseHeaders(o.headers)
+	if err != nil {
+		return nil, err
+	}
 	// The HTTP client carries no timeout of its own: streams must be able to
 	// run indefinitely. Non-streaming calls get a context deadline instead.
 	return api.New(o.resolvedBaseURL(model), o.resolvedAPIKey(), 0, debug).
-		WithRetries(o.retries)
+		WithHeaders(headers).
+		WithRetries(o.retries), nil
+}
+
+func parseHeaders(raw []string) (http.Header, error) {
+	headers := make(http.Header, len(raw))
+	for _, entry := range raw {
+		name, value, ok := strings.Cut(entry, ":")
+		name = strings.TrimSpace(name)
+		value = strings.TrimSpace(value)
+		if !ok || !validHeaderName(name) || !validHeaderValue(value) {
+			return nil, usageErrorf("invalid header %q: expected \"Name: value\"", entry)
+		}
+		headers.Set(name, value)
+	}
+	return headers, nil
+}
+
+func validHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	const separators = `()<>@,;:\"/[]?={} ` + "\t"
+	for i := 0; i < len(name); i++ {
+		if name[i] <= 0x20 || name[i] >= 0x7f || strings.ContainsRune(separators, rune(name[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func validHeaderValue(value string) bool {
+	for i := 0; i < len(value); i++ {
+		if (value[i] < 0x20 && value[i] != '\t') || value[i] == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // warnModelPathMismatch flags the case where an explicitly configured
@@ -145,6 +189,7 @@ func NewRootCommand() *cobra.Command {
 	pf.StringVar(&opts.apiKey, "api-key", "", "API key (default $CELERIS_API_KEY, then $OPENAI_API_KEY)")
 	pf.StringVar(&opts.baseURL, "base-url", "", "endpoint root, /v1 appended automatically (default $CELERIS_BASE_URL, then $OPENAI_BASE_URL, then "+api.DefaultHost+"/<model>)")
 	pf.StringVar(&opts.format, "format", "auto", "output format: auto|text|json|jsonl|pretty|raw")
+	pf.StringArrayVarP(&opts.headers, "header", "H", nil, "custom request header in \"Name: value\" form (repeatable)")
 	pf.BoolVar(&opts.debug, "debug", false, "trace requests (method, URL, User-Agent, bodies) to stderr")
 	pf.DurationVar(&opts.timeout, "timeout", 2*time.Minute, "per-request timeout for non-streaming calls (0 disables)")
 	pf.IntVar(&opts.retries, "retry", 2, "retries for rate-limited (429) and 5xx responses on non-streaming calls")

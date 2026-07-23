@@ -83,7 +83,10 @@ func newChatCompletionsCommand(opts *rootOptions) *cobra.Command {
 				User:             user,
 			}
 			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
-			client := opts.clientForModel(model)
+			client, err := opts.clientForModel(model)
+			if err != nil {
+				return err
+			}
 			if stream {
 				handler, finish := streamRenderer(cmd.OutOrStdout(), opts.format)
 				if err := client.ChatCompletionStream(cmd.Context(), req, handler); err != nil {

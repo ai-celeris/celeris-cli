@@ -64,7 +64,8 @@ type Client struct {
 	apiKey  string
 	http    *http.Client
 	debug   io.Writer // nil disables request/response tracing
-	retries int       // additional attempts after a retryable failure
+	headers http.Header
+	retries int // additional attempts after a retryable failure
 }
 
 // NormalizeBaseURL trims trailing slashes and appends /v1 unless the URL
@@ -112,6 +113,13 @@ func New(baseURL, apiKey string, timeout time.Duration, debug io.Writer) *Client
 	}
 }
 
+// WithHeaders returns c configured to add headers to every request. Custom
+// values are applied after the client's defaults, so they can override them.
+func (c *Client) WithHeaders(headers http.Header) *Client {
+	c.headers = headers.Clone()
+	return c
+}
+
 // WithRetries sets how many extra attempts a retryable failure (429, 5xx, or
 // a transport error) earns. Streaming calls are never retried: tokens already
 // written to stdout cannot be taken back.
@@ -141,6 +149,12 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body []byt
 	req.Header.Set("User-Agent", version.UserAgent())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for name, values := range c.headers {
+		req.Header.Del(name)
+		for _, value := range values {
+			req.Header.Add(name, value)
+		}
 	}
 	if c.debug != nil {
 		fmt.Fprintf(c.debug, "> %s %s\n> User-Agent: %s\n", method, req.URL, version.UserAgent())
