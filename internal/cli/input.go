@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -18,7 +20,24 @@ func stdoutIsTTY() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
+// stdinHintDelay is how long stdin may block before the user is told why the
+// process appears to be doing nothing.
+const stdinHintDelay = 2 * time.Second
+
 func readAllStdin() (string, error) {
+	// Reading from a pipe that nobody has closed yet blocks indefinitely and
+	// looks exactly like a hang. Say what is happening, once, on stderr.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		t := time.NewTimer(stdinHintDelay)
+		defer t.Stop()
+		select {
+		case <-done:
+		case <-t.C:
+			fmt.Fprintln(os.Stderr, "celeris: reading prompt from stdin; press Ctrl-D to finish or Ctrl-C to cancel")
+		}
+	}()
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", err

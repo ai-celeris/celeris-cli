@@ -35,6 +35,7 @@ func (c *Client) stream(ctx context.Context, path string, body []byte, h StreamH
 	}
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 64*1024), maxSSELine)
+	finished := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		data, ok := strings.CutPrefix(line, "data:")
@@ -45,6 +46,9 @@ func (c *Client) stream(ctx context.Context, path string, body []byte, h StreamH
 		if data == "[DONE]" {
 			return nil
 		}
+		if chunkFinished([]byte(data)) {
+			finished = true
+		}
 		if err := h([]byte(data)); err != nil {
 			return err
 		}
@@ -52,7 +56,22 @@ func (c *Client) stream(ctx context.Context, path string, body []byte, h StreamH
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("reading stream: %w", err)
 	}
+	// A chunk carrying finish_reason marks a complete response, so a server
+	// that closes without [DONE] has still delivered everything. Absent that
+	// marker the stream was truncated and the caller must hear about it.
+	if finished {
+		return nil
+	}
 	return fmt.Errorf("stream ended without [DONE] terminator")
+}
+
+// chunkFinished reports whether a chunk carries a terminal finish_reason.
+func chunkFinished(chunk []byte) bool {
+	var sc StreamChunk
+	if err := json.Unmarshal(chunk, &sc); err != nil || len(sc.Choices) == 0 {
+		return false
+	}
+	return sc.Choices[0].FinishReason != ""
 }
 
 // ChatCompletionStream issues a streaming chat completion, invoking h per

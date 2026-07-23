@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in the CLI does not behave as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report security vulnerabilities here — see
+        [SECURITY.md](https://github.com/ai-celeris/celeris-cli/blob/main/SECURITY.md).
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `celeris version`
+      placeholder: celeris 0.1.0 linux/amd64 go1.23.4
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: >
+        The exact command you ran. Redact your API key — never paste it here.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug output (optional)
+      description: >
+        Output of the same command with `--debug`. It does not include your API
+        key, but it does include your prompt — redact anything sensitive.
+      render: shell

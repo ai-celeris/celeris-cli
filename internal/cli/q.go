@@ -27,8 +27,17 @@ func newQCommand(opts *rootOptions) *cobra.Command {
   git diff --staged | celeris q "Write a one-line commit message for this diff:"
   tail -100 app.log | celeris q "Summarize the errors in this log:"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkFormat(opts.format); err != nil {
+				return err
+			}
 			if err := sampling.validate(); err != nil {
 				return err
+			}
+			// q is the pipeline shortcut, so "auto" always means plain text
+			// rather than consulting the TTY; an explicit --format still wins.
+			format := opts.format
+			if format == "auto" {
+				format = "text"
 			}
 			prompt := strings.TrimSpace(strings.Join(args, " "))
 			if stdinIsPiped() {
@@ -52,16 +61,10 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 				msgs = append(msgs, api.ChatMessage{Role: "system", Content: system})
 			}
 			msgs = append(msgs, api.ChatMessage{Role: "user", Content: prompt})
-			maxTokens := sampling.maxTokens
-			if maxTokens == 0 {
-				// q favors interactive latency; 256 is the smallest budget the
-				// service accepts and plenty for pipeline-sized answers.
-				maxTokens = 256
-			}
 			req := api.ChatCompletionRequest{
 				Model:            model,
 				Messages:         msgs,
-				MaxTokens:        maxTokens,
+				MaxTokens:        sampling.maxTokens,
 				Temperature:      floatIfSet(cmd, "temperature", sampling.temperature),
 				TopP:             floatIfSet(cmd, "top-p", sampling.topP),
 				Seed:             intIfSet(cmd, "seed", sampling.seed),
@@ -69,7 +72,8 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 				PresencePenalty:  floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
 				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
 			}
-			client, err := opts.client()
+			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
+			client, err := opts.clientForModel(model)
 			if err != nil {
 				return err
 			}
@@ -80,9 +84,9 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return renderBody(cmd.OutOrStdout(), "text", body, chatText)
+				return renderBody(cmd.OutOrStdout(), format, body, chatText)
 			}
-			handler, finish := streamRenderer(cmd.OutOrStdout(), "text")
+			handler, finish := streamRenderer(cmd.OutOrStdout(), format)
 			if err := client.ChatCompletionStream(cmd.Context(), req, handler); err != nil {
 				return err
 			}

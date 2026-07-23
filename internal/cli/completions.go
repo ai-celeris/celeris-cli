@@ -48,7 +48,8 @@ func newCompletionsCommand(opts *rootOptions) *cobra.Command {
 				PresencePenalty:  floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
 				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
 			}
-			client, err := opts.client()
+			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
+			client, err := opts.clientForModel(model)
 			if err != nil {
 				return err
 			}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -31,6 +32,7 @@ type rootOptions struct {
 	debug   bool
 	timeout time.Duration
 	headers []string
+	retries int
 }
 
 func envOr(keys ...string) string {
@@ -49,15 +51,23 @@ func (o *rootOptions) resolvedAPIKey() string {
 	return envOr("CELERIS_API_KEY", "OPENAI_API_KEY")
 }
 
-func (o *rootOptions) resolvedBaseURL() string {
+// resolvedBaseURL picks the endpoint for a request. Production embeds the
+// model id in the path, so when nothing is configured the default endpoint is
+// derived from the model rather than pinned to celeris-1.
+func (o *rootOptions) resolvedBaseURL(model string) string {
 	if o.baseURL != "" {
 		return o.baseURL
 	}
-	return envOr("CELERIS_BASE_URL", "OPENAI_BASE_URL")
+	if v := envOr("CELERIS_BASE_URL", "OPENAI_BASE_URL"); v != "" {
+		return v
+	}
+	return api.DefaultBaseURLForModel(model)
 }
 
-func (o *rootOptions) client() (*api.Client, error) {
-	var debug *os.File
+// clientForModel builds a client aimed at the endpoint serving model.
+// Commands with no model concept (models, api) pass "".
+func (o *rootOptions) clientForModel(model string) (*api.Client, error) {
+	var debug io.Writer
 	if o.debug {
 		debug = os.Stderr
 	}
@@ -67,7 +77,9 @@ func (o *rootOptions) client() (*api.Client, error) {
 	}
 	// The HTTP client carries no timeout of its own: streams must be able to
 	// run indefinitely. Non-streaming calls get a context deadline instead.
-	return api.New(o.resolvedBaseURL(), o.resolvedAPIKey(), 0, debug).WithHeaders(headers), nil
+	return api.New(o.resolvedBaseURL(model), o.resolvedAPIKey(), 0, debug).
+		WithHeaders(headers).
+		WithRetries(o.retries), nil
 }
 
 func parseHeaders(raw []string) (http.Header, error) {
@@ -106,6 +118,22 @@ func validHeaderValue(value string) bool {
 	return true
 }
 
+// warnModelPathMismatch flags the case where an explicitly configured
+// endpoint pins one model in its path while --model selects another: the
+// service rejects that combination, and the resulting error does not say why.
+// It is a warning rather than an error because a proxy may legitimately use a
+// path that only looks like a model segment.
+func warnModelPathMismatch(w io.Writer, o *rootOptions, model string) {
+	if model == "" {
+		return
+	}
+	seg := api.ModelPathSegment(o.resolvedBaseURL(model))
+	if seg != "" && seg != model {
+		fmt.Fprintf(w, "celeris: warning: endpoint path serves model %q but --model is %q; "+
+			"set --base-url to the endpoint for %q\n", seg, model, model)
+	}
+}
+
 // requestContext applies --timeout to non-streaming calls.
 func (o *rootOptions) requestContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if o.timeout <= 0 {
@@ -118,17 +146,27 @@ func defaultModel() string {
 	if m := os.Getenv("CELERIS_MODEL"); m != "" {
 		return m
 	}
-	return "celeris-1"
+	return api.DefaultModel
 }
 
-// validMaxTokens are the only values the service accepts (multiples of 256
-// up to 1024); 0 means "omit from the request".
+const (
+	// defaultMaxTokens is the completion budget sent when --max-tokens is not
+	// given, so a request has a predictable output ceiling without the caller
+	// having to pick one.
+	defaultMaxTokens = 2048
+	// maxTokensLimit is the largest budget the service accepts, and also the
+	// size of the context window that prompt and completion share.
+	maxTokensLimit = 8192
+)
+
+// validateMaxTokens bounds the completion budget. 0 is legal and means "leave
+// max_tokens out of the request", deferring to whatever the service defaults
+// to; anything above the limit would be rejected server-side.
 func validateMaxTokens(n int) error {
-	switch n {
-	case 0, 256, 512, 768, 1024:
-		return nil
+	if n < 0 || n > maxTokensLimit {
+		return usageErrorf("--max-tokens must be between 0 and %d (got %d)", maxTokensLimit, n)
 	}
-	return usageErrorf("--max-tokens must be one of 256, 512, 768, 1024 (got %d)", n)
+	return nil
 }
 
 // NewRootCommand assembles the full command tree.
@@ -149,11 +187,12 @@ func NewRootCommand() *cobra.Command {
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&opts.apiKey, "api-key", "", "API key (default $CELERIS_API_KEY, then $OPENAI_API_KEY)")
-	pf.StringVar(&opts.baseURL, "base-url", "", "endpoint root, /v1 appended automatically (default $CELERIS_BASE_URL, then $OPENAI_BASE_URL, then "+api.DefaultBaseURL+")")
+	pf.StringVar(&opts.baseURL, "base-url", "", "endpoint root, /v1 appended automatically (default $CELERIS_BASE_URL, then $OPENAI_BASE_URL, then "+api.DefaultHost+"/<model>)")
 	pf.StringVar(&opts.format, "format", "auto", "output format: auto|text|json|jsonl|pretty|raw")
 	pf.StringArrayVarP(&opts.headers, "header", "H", nil, "custom request header in \"Name: value\" form (repeatable)")
 	pf.BoolVar(&opts.debug, "debug", false, "trace requests (method, URL, User-Agent, bodies) to stderr")
 	pf.DurationVar(&opts.timeout, "timeout", 2*time.Minute, "per-request timeout for non-streaming calls (0 disables)")
+	pf.IntVar(&opts.retries, "retry", 2, "retries for rate-limited (429) and 5xx responses on non-streaming calls")
 
 	root.AddCommand(
 		newChatCompletionsCommand(opts),
@@ -163,6 +202,14 @@ func NewRootCommand() *cobra.Command {
 		newAPICommand(opts),
 		newVersionCommand(),
 	)
+
+	// Cobra's built-in `completion` sits next to the `completions` API
+	// resource in help output; spell out the difference so the two are not
+	// mistaken for each other.
+	root.InitDefaultCompletionCmd()
+	if c, _, err := root.Find([]string{"completion"}); err == nil && c != nil {
+		c.Short = "Generate a shell autocompletion script (not the completions API)"
+	}
 	return root
 }
 
