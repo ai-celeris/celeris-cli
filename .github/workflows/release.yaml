@@ -30,9 +30,8 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          # Build with a current, security-patched toolchain rather than the
-          # go.mod minimum: `go 1.23` is the floor for `go install` users, but
-          # that release no longer receives security fixes.
+          # Build releases with the latest stable toolchain; CI separately
+          # verifies the `go 1.25` minimum promised to `go install` users.
           go-version: stable
           check-latest: true
           cache-dependency-path: go.sum
