@@ -52,6 +52,9 @@ celeris completions create -p "The capital of France is" --max-tokens 256
 # Models:
 celeris models list
 
+# Add custom request headers (repeat -H to send more than one):
+celeris -H "X-Request-Group: experiment-a" models list
+
 # Raw escape hatch for anything else under /v1:
 celeris api get /models
 echo '{"model":"celeris-1","messages":[{"role":"user","content":"hi"}]}' | celeris api post /chat/completions

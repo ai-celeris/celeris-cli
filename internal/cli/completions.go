@@ -48,7 +48,10 @@ func newCompletionsCommand(opts *rootOptions) *cobra.Command {
 				PresencePenalty:  floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
 				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
 			}
-			client := opts.client()
+			client, err := opts.client()
+			if err != nil {
+				return err
+			}
 			if stream {
 				handler, finish := streamRenderer(cmd.OutOrStdout(), opts.format)
 				if err := client.CompletionStream(cmd.Context(), req, handler); err != nil {

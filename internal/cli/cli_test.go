@@ -172,6 +172,45 @@ func TestModelsListJSONLFormat(t *testing.T) {
 	}
 }
 
+func TestCustomHeaders(t *testing.T) {
+	var gotGroup, gotTrace string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotGroup = r.Header.Get("X-Request-Group")
+		gotTrace = r.Header.Get("X-Trace-ID")
+		fmt.Fprint(w, `{"object":"list","data":[]}`)
+	}))
+	defer srv.Close()
+
+	_, err := runCLI(t,
+		"models", "list",
+		"--base-url", srv.URL, "--api-key", "ck_test",
+		"-H", "X-Request-Group: first",
+		"-H", "X-Trace-ID: trace-123",
+		"-H", "X-Request-Group: second",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotGroup != "second" {
+		t.Errorf("X-Request-Group = %q, want second", gotGroup)
+	}
+	if gotTrace != "trace-123" {
+		t.Errorf("X-Trace-ID = %q, want trace-123", gotTrace)
+	}
+}
+
+func TestCustomHeaderValidation(t *testing.T) {
+	for _, header := range []string{"missing-colon", "Bad Header: value", "X-Test: bad\rvalue"} {
+		_, err := runCLI(t, "models", "list", "--api-key", "ck_test", "-H", header)
+		if err == nil || !strings.Contains(err.Error(), "invalid header") {
+			t.Errorf("header %q: want invalid-header error, got %v", header, err)
+		}
+		if _, ok := err.(usageError); !ok {
+			t.Errorf("header %q: want usageError, got %T", header, err)
+		}
+	}
+}
+
 func TestAPICommandRejectsBadMethod(t *testing.T) {
 	_, err := runCLI(t, "api", "yeet", "/models", "--api-key", "ck_test")
 	if err == nil || !strings.Contains(err.Error(), "unsupported method") {

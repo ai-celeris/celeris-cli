@@ -25,6 +25,7 @@ type Client struct {
 	apiKey  string
 	http    *http.Client
 	debug   io.Writer // nil disables request/response tracing
+	headers http.Header
 }
 
 // NormalizeBaseURL trims trailing slashes and appends /v1 unless the URL
@@ -52,6 +53,13 @@ func New(baseURL, apiKey string, timeout time.Duration, debug io.Writer) *Client
 	}
 }
 
+// WithHeaders returns c configured to add headers to every request. Custom
+// values are applied after the client's defaults, so they can override them.
+func (c *Client) WithHeaders(headers http.Header) *Client {
+	c.headers = headers.Clone()
+	return c
+}
+
 // BaseURL reports the normalized endpoint, for --debug output.
 func (c *Client) BaseURL() string { return c.baseURL }
 
@@ -71,6 +79,12 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body []byt
 	req.Header.Set("User-Agent", version.UserAgent())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for name, values := range c.headers {
+		req.Header.Del(name)
+		for _, value := range values {
+			req.Header.Add(name, value)
+		}
 	}
 	if c.debug != nil {
 		fmt.Fprintf(c.debug, "> %s %s\n> User-Agent: %s\n", method, req.URL, version.UserAgent())

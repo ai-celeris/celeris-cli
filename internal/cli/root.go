@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ai-celeris/celeris-cli/internal/api"
@@ -28,6 +30,7 @@ type rootOptions struct {
 	format  string
 	debug   bool
 	timeout time.Duration
+	headers []string
 }
 
 func envOr(keys ...string) string {
@@ -53,17 +56,54 @@ func (o *rootOptions) resolvedBaseURL() string {
 	return envOr("CELERIS_BASE_URL", "OPENAI_BASE_URL")
 }
 
-func (o *rootOptions) client() *api.Client {
+func (o *rootOptions) client() (*api.Client, error) {
 	var debug *os.File
 	if o.debug {
 		debug = os.Stderr
 	}
+	headers, err := parseHeaders(o.headers)
+	if err != nil {
+		return nil, err
+	}
 	// The HTTP client carries no timeout of its own: streams must be able to
 	// run indefinitely. Non-streaming calls get a context deadline instead.
-	if debug != nil {
-		return api.New(o.resolvedBaseURL(), o.resolvedAPIKey(), 0, debug)
+	return api.New(o.resolvedBaseURL(), o.resolvedAPIKey(), 0, debug).WithHeaders(headers), nil
+}
+
+func parseHeaders(raw []string) (http.Header, error) {
+	headers := make(http.Header, len(raw))
+	for _, entry := range raw {
+		name, value, ok := strings.Cut(entry, ":")
+		name = strings.TrimSpace(name)
+		value = strings.TrimSpace(value)
+		if !ok || !validHeaderName(name) || !validHeaderValue(value) {
+			return nil, usageErrorf("invalid header %q: expected \"Name: value\"", entry)
+		}
+		headers.Set(name, value)
 	}
-	return api.New(o.resolvedBaseURL(), o.resolvedAPIKey(), 0, nil)
+	return headers, nil
+}
+
+func validHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	const separators = `()<>@,;:\"/[]?={} ` + "\t"
+	for i := 0; i < len(name); i++ {
+		if name[i] <= 0x20 || name[i] >= 0x7f || strings.ContainsRune(separators, rune(name[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func validHeaderValue(value string) bool {
+	for i := 0; i < len(value); i++ {
+		if (value[i] < 0x20 && value[i] != '\t') || value[i] == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // requestContext applies --timeout to non-streaming calls.
@@ -111,6 +151,7 @@ func NewRootCommand() *cobra.Command {
 	pf.StringVar(&opts.apiKey, "api-key", "", "API key (default $CELERIS_API_KEY, then $OPENAI_API_KEY)")
 	pf.StringVar(&opts.baseURL, "base-url", "", "endpoint root, /v1 appended automatically (default $CELERIS_BASE_URL, then $OPENAI_BASE_URL, then "+api.DefaultBaseURL+")")
 	pf.StringVar(&opts.format, "format", "auto", "output format: auto|text|json|jsonl|pretty|raw")
+	pf.StringArrayVarP(&opts.headers, "header", "H", nil, "custom request header in \"Name: value\" form (repeatable)")
 	pf.BoolVar(&opts.debug, "debug", false, "trace requests (method, URL, User-Agent, bodies) to stderr")
 	pf.DurationVar(&opts.timeout, "timeout", 2*time.Minute, "per-request timeout for non-streaming calls (0 disables)")
 

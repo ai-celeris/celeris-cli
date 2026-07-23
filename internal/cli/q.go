@@ -69,7 +69,10 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 				PresencePenalty:  floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
 				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
 			}
-			client := opts.client()
+			client, err := opts.client()
+			if err != nil {
+				return err
+			}
 			if noStream {
 				ctx, cancel := opts.requestContext(cmd.Context())
 				defer cancel()
