@@ -17,9 +17,8 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          # Build with a current, security-patched toolchain rather than the
-          # go.mod minimum: `go 1.23` is the floor for `go install` users, but
-          # that release no longer receives security fixes.
+          # Build with the latest stable toolchain; the compat job separately
+          # verifies the `go 1.25` minimum promised to `go install` users.
           go-version: stable
           check-latest: true
           cache-dependency-path: go.sum
@@ -58,7 +57,7 @@ jobs:
           # The oldest toolchain the go.mod directive promises to support. The
           # other jobs build with `stable`, so without this the floor could
           # break for `go install` users without anyone noticing.
-          go-version: "1.23"
+          go-version: "1.25"
           cache-dependency-path: go.sum
 
       - name: Build and test at the minimum supported Go
@@ -78,9 +77,8 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          # Build with a current, security-patched toolchain rather than the
-          # go.mod minimum: `go 1.23` is the floor for `go install` users, but
-          # that release no longer receives security fixes.
+          # Scan with the latest stable toolchain; the compat job separately
+          # verifies the `go 1.25` minimum promised to `go install` users.
           go-version: stable
           check-latest: true
           cache-dependency-path: go.sum

@@ -13,7 +13,7 @@ Homebrew:
 brew install ai-celeris/tools/celeris
 ```
 
-Go (1.23+):
+Go (1.25+):
 
 ```sh
 go install github.com/ai-celeris/celeris-cli/cmd/celeris@latest
