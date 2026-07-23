@@ -28,16 +28,26 @@ func newAPICommand(opts *rootOptions) *cobra.Command {
 				return usageErrorf("unsupported method %q", args[0])
 			}
 			var body []byte
-			payload, ok, err := resolveInput(data)
-			if err != nil {
-				return err
-			}
-			if ok {
-				body = []byte(payload)
+			// GET and DELETE take no body. Without this guard the implicit
+			// stdin fallback attaches whatever the pipeline happens to be
+			// feeding the process, producing a GET with a payload that
+			// proxies and servers are entitled to reject.
+			if method == "GET" || method == "DELETE" {
+				if data != "" {
+					return usageErrorf("--data is not valid for a %s request", method)
+				}
+			} else {
+				payload, ok, err := resolveInput(data)
+				if err != nil {
+					return err
+				}
+				if ok {
+					body = []byte(payload)
+				}
 			}
 			ctx, cancel := opts.requestContext(cmd.Context())
 			defer cancel()
-			resp, err := opts.client().Raw(ctx, method, args[1], body)
+			resp, err := opts.clientForModel("").Raw(ctx, method, args[1], body)
 			if err != nil {
 				return err
 			}
