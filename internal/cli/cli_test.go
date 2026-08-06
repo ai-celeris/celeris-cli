@@ -239,3 +239,16 @@ func TestVersionCommand(t *testing.T) {
 		t.Errorf("out = %q", out)
 	}
 }
+
+func TestLoginCommandIsRegistered(t *testing.T) {
+	cmd, args, err := NewRootCommand().Find([]string{"login"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Name() != "login" || len(args) != 0 {
+		t.Fatalf("found command %q with args %v", cmd.Name(), args)
+	}
+	if cmd.Flags().Lookup("console-url") == nil {
+		t.Fatal("login command has no --console-url flag")
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ai-celeris/celeris-cli/internal/api"
+	"github.com/ai-celeris/celeris-cli/internal/auth"
 	"github.com/ai-celeris/celeris-cli/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -48,7 +49,11 @@ func (o *rootOptions) resolvedAPIKey() string {
 	if o.apiKey != "" {
 		return o.apiKey
 	}
-	return envOr("CELERIS_API_KEY", "OPENAI_API_KEY")
+	if key := envOr("CELERIS_API_KEY", "OPENAI_API_KEY"); key != "" {
+		return key
+	}
+	key, _ := (auth.Keychain{}).Get()
+	return key
 }
 
 // resolvedBaseURL picks the endpoint for a request. Production embeds the
@@ -195,6 +200,7 @@ func NewRootCommand() *cobra.Command {
 	pf.IntVar(&opts.retries, "retry", 2, "retries for rate-limited (429) and 5xx responses on non-streaming calls")
 
 	root.AddCommand(
+		newLoginCommand(),
 		newChatCompletionsCommand(opts),
 		newCompletionsCommand(opts),
 		newModelsCommand(opts),
@@ -211,6 +217,24 @@ func NewRootCommand() *cobra.Command {
 		c.Short = "Generate a shell autocompletion script (not the completions API)"
 	}
 	return root
+}
+
+func newLoginCommand() *cobra.Command {
+	var consoleURL string
+	cmd := &cobra.Command{
+		Use:   "login",
+		Short: "Log in through the browser and save an API key to the OS keychain",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return auth.Login(cmd.Context(), auth.Config{
+				ConsoleURL: consoleURL,
+				Out:        cmd.OutOrStdout(),
+				Err:        cmd.ErrOrStderr(),
+			})
+		},
+	}
+	cmd.Flags().StringVar(&consoleURL, "console-url", envOr("CELERIS_CONSOLE_URL"), "console origin (default $CELERIS_CONSOLE_URL, then "+auth.DefaultConsoleURL+")")
+	return cmd
 }
 
 func newVersionCommand() *cobra.Command {

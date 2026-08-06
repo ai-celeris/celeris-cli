@@ -135,7 +135,7 @@ func (c *Client) BaseURL() string { return c.baseURL }
 
 func (c *Client) newRequest(ctx context.Context, method, path string, body []byte) (*http.Request, error) {
 	if c.apiKey == "" {
-		return nil, fmt.Errorf("no API key: set CELERIS_API_KEY or pass --api-key")
+		return nil, fmt.Errorf("no API key: run `celeris login`, set CELERIS_API_KEY, or pass --api-key")
 	}
 	var rd io.Reader
 	if body != nil {
