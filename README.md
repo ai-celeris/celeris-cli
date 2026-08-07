@@ -24,16 +24,17 @@ Or download a binary archive from the
 
 ## Configure
 
-The easiest option is browser login. It creates a dedicated private API key and
-stores it in your operating system's native keychain:
+The easiest option is browser login. It reuses or provisions your private API
+key named `Celeris CLI` and stores it in your operating system's native keychain:
 
 ```sh
 celeris login
 ```
 
 The CLI prints a pairing code, opens the Celeris Console for approval, and never
-prints the resulting API key. The environment variables and flags below remain
-available for automation and explicit overrides:
+prints the resulting API key. The distinct name makes the credential easy to
+identify, rotate, or revoke in the Console. The environment variables and flags
+below remain available for automation and explicit overrides:
 
 ```sh
 export CELERIS_API_KEY="ck_..."               # from https://console.celeris.ai

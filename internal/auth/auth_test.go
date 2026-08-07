@@ -3,6 +3,7 @@ package auth
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,10 @@ func TestLoginOpensBrowserPollsAndSavesKey(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/auth/agent/device":
+			var request map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request["keyName"] != LoginKeyName {
+				t.Errorf("device request = %#v, %v", request, err)
+			}
 			fmt.Fprintf(w, `{"deviceCode":"device-secret","userCode":"ABCD-2345","verificationUriComplete":%q,"expiresIn":600,"interval":5}`, srvURL(r)+"/?agent_authorization=signed-public-code")
 		case "/auth/agent/token":
 			polls++

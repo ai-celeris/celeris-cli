@@ -21,6 +21,7 @@ import (
 
 const (
 	DefaultConsoleURL = "https://console.celeris.ai"
+	LoginKeyName      = "Celeris CLI"
 	keychainService   = "celeris-cli"
 	keychainAccount   = "api-key"
 	maxResponseBytes  = 1 << 20
@@ -89,7 +90,7 @@ func Login(ctx context.Context, cfg Config) error {
 	}
 
 	var started deviceStart
-	if err := postJSON(ctx, cfg.HTTPClient, base+"/auth/agent/device", struct{}{}, &started); err != nil {
+	if err := postJSON(ctx, cfg.HTTPClient, base+"/auth/agent/device", map[string]string{"keyName": LoginKeyName}, &started); err != nil {
 		return fmt.Errorf("start login: %w", err)
 	}
 	if started.DeviceCode == "" || started.UserCode == "" || started.VerificationURIComplete == "" || started.ExpiresIn <= 0 {
