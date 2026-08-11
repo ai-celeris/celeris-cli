@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-type memoryStore struct{ secret string }
+type memoryStore struct{ creds Credentials }
 
-func (m *memoryStore) Get() (string, error) { return m.secret, nil }
-func (m *memoryStore) Set(secret string) error {
-	m.secret = secret
+func (m *memoryStore) Load() (Credentials, error) { return m.creds, nil }
+func (m *memoryStore) Save(creds Credentials) error {
+	m.creds = creds
 	return nil
 }
 
@@ -37,7 +37,7 @@ func TestLoginOpensBrowserPollsAndSavesKey(t *testing.T) {
 				fmt.Fprint(w, `{"error":"authorization_pending","error_description":"waiting"}`)
 				return
 			}
-			fmt.Fprint(w, `{"access_token":"ck_secret","token_type":"Bearer"}`)
+			fmt.Fprint(w, `{"access_token":"ck_secret","token_type":"Bearer","workspace_id":"ws_1","workspace_name":"Acme Prod"}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -62,8 +62,11 @@ func TestLoginOpensBrowserPollsAndSavesKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if store.secret != "ck_secret" {
-		t.Fatalf("stored secret = %q", store.secret)
+	if store.creds.APIKey != "ck_secret" {
+		t.Fatalf("stored key = %q", store.creds.APIKey)
+	}
+	if store.creds.WorkspaceID != "ws_1" || store.creds.WorkspaceName != "Acme Prod" {
+		t.Fatalf("stored workspace = %q/%q", store.creds.WorkspaceID, store.creds.WorkspaceName)
 	}
 	if opened != srv.URL+"/?agent_authorization=signed-public-code" {
 		t.Fatalf("opened = %q", opened)
@@ -71,7 +74,7 @@ func TestLoginOpensBrowserPollsAndSavesKey(t *testing.T) {
 	if !strings.Contains(diagnostics.String(), "ABCD-2345") || strings.Contains(diagnostics.String(), "device-secret") || strings.Contains(diagnostics.String(), "ck_secret") {
 		t.Fatalf("unsafe diagnostics = %q", diagnostics.String())
 	}
-	if !strings.Contains(out.String(), "OS keychain") {
+	if !strings.Contains(out.String(), "OS keychain") || !strings.Contains(out.String(), "Acme Prod") {
 		t.Fatalf("out = %q", out.String())
 	}
 }
@@ -139,8 +142,39 @@ func TestLoginNeverStoresMalformedCredential(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "invalid API key") {
 		t.Fatalf("err = %v", err)
 	}
-	if store.secret != "" {
-		t.Fatalf("stored malformed secret %q", store.secret)
+	if store.creds.APIKey != "" {
+		t.Fatalf("stored malformed secret %q", store.creds.APIKey)
+	}
+}
+
+func TestWriteStatus(t *testing.T) {
+	cases := []struct {
+		name  string
+		creds Credentials
+		want  string
+	}{
+		{"logged out", Credentials{}, "Not logged in"},
+		{"named workspace", Credentials{APIKey: "ck_x", WorkspaceName: "Acme Prod", WorkspaceID: "ws_1"}, `"Acme Prod"`},
+		{"id only", Credentials{APIKey: "ck_x", WorkspaceID: "ws_1"}, `"ws_1"`},
+		{"key without workspace", Credentials{APIKey: "ck_x"}, "Logged in."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			WriteStatus(&out, tc.creds)
+			if !strings.Contains(out.String(), tc.want) {
+				t.Fatalf("status = %q, want substring %q", out.String(), tc.want)
+			}
+		})
+	}
+}
+
+func TestDecodeCredentialsAcceptsLegacyBareKey(t *testing.T) {
+	if got := decodeCredentials("ck_bare"); got.APIKey != "ck_bare" || got.WorkspaceName != "" {
+		t.Fatalf("bare key decoded to %#v", got)
+	}
+	if got := decodeCredentials(`{"apiKey":"ck_json","workspaceName":"Acme"}`); got.APIKey != "ck_json" || got.WorkspaceName != "Acme" {
+		t.Fatalf("json decoded to %#v", got)
 	}
 }
 

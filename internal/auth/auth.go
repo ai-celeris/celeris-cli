@@ -27,31 +27,77 @@ const (
 	maxResponseBytes  = 1 << 20
 )
 
+// Credentials are what a login persists: the minted inference API key plus the
+// workspace the member chose to mint it into at approval time. The workspace
+// fields are display metadata so the CLI can show which workspace the stored
+// key belongs to; they are never sent as an authorization input.
+type Credentials struct {
+	APIKey        string `json:"apiKey"`
+	WorkspaceID   string `json:"workspaceId,omitempty"`
+	WorkspaceName string `json:"workspaceName,omitempty"`
+}
+
 // CredentialStore is the seam between authorization and durable secret storage.
 type CredentialStore interface {
-	Get() (string, error)
-	Set(string) error
+	Load() (Credentials, error)
+	Save(Credentials) error
 }
 
-// Keychain stores the API key in the operating system's native credential store.
+// Keychain stores the credentials in the operating system's native credential
+// store, as one JSON blob under a single account.
 type Keychain struct{}
 
-func (Keychain) Get() (string, error) {
-	secret, err := keyring.Get(keychainService, keychainAccount)
+func (Keychain) Load() (Credentials, error) {
+	raw, err := keyring.Get(keychainService, keychainAccount)
 	if errors.Is(err, keyring.ErrNotFound) {
-		return "", nil
+		return Credentials{}, nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("read OS keychain: %w", err)
+		return Credentials{}, fmt.Errorf("read OS keychain: %w", err)
 	}
-	return secret, nil
+	return decodeCredentials(raw), nil
 }
 
-func (Keychain) Set(secret string) error {
-	if err := keyring.Set(keychainService, keychainAccount, secret); err != nil {
+func (Keychain) Save(creds Credentials) error {
+	blob, err := json.Marshal(creds)
+	if err != nil {
+		return fmt.Errorf("encode credentials: %w", err)
+	}
+	if err := keyring.Set(keychainService, keychainAccount, string(blob)); err != nil {
 		return fmt.Errorf("save API key to OS keychain: %w", err)
 	}
 	return nil
+}
+
+// decodeCredentials reads a stored credential blob. A bare, non-JSON value is
+// treated as an API key with no workspace metadata, so a credential written by
+// an earlier build (which stored the key alone) still loads.
+func decodeCredentials(raw string) Credentials {
+	if strings.HasPrefix(strings.TrimSpace(raw), "{") {
+		var creds Credentials
+		if err := json.Unmarshal([]byte(raw), &creds); err == nil {
+			return creds
+		}
+	}
+	return Credentials{APIKey: raw}
+}
+
+// WriteStatus renders the stored login for humans: which workspace the saved
+// key is connected to, or that there is no saved key.
+func WriteStatus(w io.Writer, creds Credentials) {
+	if creds.APIKey == "" {
+		fmt.Fprintln(w, "Not logged in. Run `celeris login`.")
+		return
+	}
+	name := creds.WorkspaceName
+	if name == "" {
+		name = creds.WorkspaceID
+	}
+	if name != "" {
+		fmt.Fprintf(w, "Logged in to workspace %q.\n", name)
+		return
+	}
+	fmt.Fprintln(w, "Logged in.")
 }
 
 // Config supplies the adapters used during a login. Tests replace all three.
@@ -76,8 +122,13 @@ type deviceStart struct {
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
-	Error       string `json:"error"`
-	Description string `json:"error_description"`
+	// WorkspaceID and WorkspaceName name the workspace the member chose in the
+	// browser to mint this key into (workspace selection, CEL-209). They are
+	// display metadata, not an authorization input.
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceName string `json:"workspace_name"`
+	Error         string `json:"error"`
+	Description   string `json:"error_description"`
 }
 
 // Login runs the device authorization flow and saves the one-time API key.
@@ -129,10 +180,18 @@ func Login(ctx context.Context, cfg Config) error {
 			if !strings.EqualFold(token.TokenType, "Bearer") || !strings.HasPrefix(token.AccessToken, "ck_") {
 				return errors.New("finish login: console returned an invalid API key")
 			}
-			if err := cfg.Store.Set(token.AccessToken); err != nil {
+			if err := cfg.Store.Save(Credentials{
+				APIKey:        token.AccessToken,
+				WorkspaceID:   token.WorkspaceID,
+				WorkspaceName: token.WorkspaceName,
+			}); err != nil {
 				return err
 			}
-			fmt.Fprintln(cfg.Out, "Logged in. API key saved to the OS keychain.")
+			if token.WorkspaceName != "" {
+				fmt.Fprintf(cfg.Out, "Logged in to workspace %q. API key saved to the OS keychain.\n", token.WorkspaceName)
+			} else {
+				fmt.Fprintln(cfg.Out, "Logged in. API key saved to the OS keychain.")
+			}
 			return nil
 		}
 		switch token.Error {

@@ -52,8 +52,8 @@ func (o *rootOptions) resolvedAPIKey() string {
 	if key := envOr("CELERIS_API_KEY", "OPENAI_API_KEY"); key != "" {
 		return key
 	}
-	key, _ := (auth.Keychain{}).Get()
-	return key
+	creds, _ := (auth.Keychain{}).Load()
+	return creds.APIKey
 }
 
 // resolvedBaseURL picks the endpoint for a request. Production embeds the
@@ -221,11 +221,20 @@ func NewRootCommand() *cobra.Command {
 
 func newLoginCommand() *cobra.Command {
 	var consoleURL string
+	var status bool
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Log in through the browser and save an API key to the OS keychain",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if status {
+				creds, err := (auth.Keychain{}).Load()
+				if err != nil {
+					return err
+				}
+				auth.WriteStatus(cmd.OutOrStdout(), creds)
+				return nil
+			}
 			return auth.Login(cmd.Context(), auth.Config{
 				ConsoleURL: consoleURL,
 				Out:        cmd.OutOrStdout(),
@@ -234,6 +243,7 @@ func newLoginCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&consoleURL, "console-url", envOr("CELERIS_CONSOLE_URL"), "console origin (default $CELERIS_CONSOLE_URL, then "+auth.DefaultConsoleURL+")")
+	cmd.Flags().BoolVar(&status, "status", false, "show which workspace the saved key is connected to, without logging in")
 	return cmd
 }
 

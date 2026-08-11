@@ -251,4 +251,7 @@ func TestLoginCommandIsRegistered(t *testing.T) {
 	if cmd.Flags().Lookup("console-url") == nil {
 		t.Fatal("login command has no --console-url flag")
 	}
+	if cmd.Flags().Lookup("status") == nil {
+		t.Fatal("login command has no --status flag")
+	}
 }
