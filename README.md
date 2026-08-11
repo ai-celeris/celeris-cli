@@ -24,18 +24,42 @@ Or download a binary archive from the
 
 ## Configure
 
+The easiest option is browser login. It reuses or provisions your private API
+key named `Celeris CLI` and stores it in your operating system's native keychain:
+
+```sh
+celeris login
+```
+
+The CLI prints a pairing code, opens the Celeris Console for approval, and never
+prints the resulting API key. In the browser you pick which workspace to mint
+the key into; the key and its spend are bound to that choice. The distinct name
+makes the credential easy to identify, rotate, or revoke in the Console.
+
+The CLI stores the connected workspace's name alongside the key, so you can
+check which workspace the saved credential belongs to at any time:
+
+```sh
+celeris login --status
+```
+
+The environment variables and flags below remain available for automation and
+explicit overrides:
+
 ```sh
 export CELERIS_API_KEY="ck_..."               # from https://console.celeris.ai
 # Optional; defaults to the production endpoint for the selected model:
 export CELERIS_BASE_URL="https://inference.celeris.ai/celeris-1"
 ```
 
-`OPENAI_API_KEY` / `OPENAI_BASE_URL` are honored as fallbacks, and every
-setting has a flag (`--api-key`, `--base-url`). `CELERIS_MODEL` overrides the
-default model (`celeris-1`).
+API key precedence is `--api-key`, `CELERIS_API_KEY`, `OPENAI_API_KEY`, then the
+OS keychain. `OPENAI_BASE_URL` is honored as a fallback, and every endpoint
+setting has a flag (`--base-url`). `CELERIS_MODEL` overrides the default model
+(`celeris-1`).
 
-Prefer the environment variable to `--api-key`: command arguments are visible
-to other users via the process list and are saved in your shell history.
+For automation, prefer the environment variable to `--api-key`: command
+arguments are visible to other users via the process list and are saved in your
+shell history.
 
 ### Models live in the endpoint path
 
