@@ -37,7 +37,7 @@ func TestLoginOpensBrowserPollsAndSavesKey(t *testing.T) {
 				fmt.Fprint(w, `{"error":"authorization_pending","error_description":"waiting"}`)
 				return
 			}
-			fmt.Fprint(w, `{"access_token":"ck_secret","token_type":"Bearer","workspace_id":"ws_1","workspace_name":"Acme Prod"}`)
+			fmt.Fprint(w, `{"access_token":"ck_secret","token_type":"Bearer","management_token":"cmt_secret.signed","management_token_type":"Bearer","workspace_id":"ws_1","workspace_name":"Acme Prod"}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -65,6 +65,9 @@ func TestLoginOpensBrowserPollsAndSavesKey(t *testing.T) {
 	if store.creds.APIKey != "ck_secret" {
 		t.Fatalf("stored key = %q", store.creds.APIKey)
 	}
+	if store.creds.ManagementToken != "cmt_secret.signed" {
+		t.Fatalf("stored management token = %q", store.creds.ManagementToken)
+	}
 	if store.creds.WorkspaceID != "ws_1" || store.creds.WorkspaceName != "Acme Prod" {
 		t.Fatalf("stored workspace = %q/%q", store.creds.WorkspaceID, store.creds.WorkspaceName)
 	}
@@ -74,7 +77,7 @@ func TestLoginOpensBrowserPollsAndSavesKey(t *testing.T) {
 	if !strings.Contains(diagnostics.String(), "ABCD-2345") || strings.Contains(diagnostics.String(), "device-secret") || strings.Contains(diagnostics.String(), "ck_secret") {
 		t.Fatalf("unsafe diagnostics = %q", diagnostics.String())
 	}
-	if !strings.Contains(out.String(), "OS keychain") || !strings.Contains(out.String(), "Acme Prod") {
+	if !strings.Contains(out.String(), "Credentials saved to the OS keychain") || !strings.Contains(out.String(), "Acme Prod") {
 		t.Fatalf("out = %q", out.String())
 	}
 }
@@ -85,7 +88,7 @@ func TestLoginPrintsURLWhenBrowserCannotOpen(t *testing.T) {
 			fmt.Fprintf(w, `{"deviceCode":"device","userCode":"ABCD-2345","verificationUriComplete":%q,"expiresIn":600,"interval":5}`, srvURL(r)+"/verify")
 			return
 		}
-		fmt.Fprint(w, `{"access_token":"ck_secret","token_type":"Bearer"}`)
+		fmt.Fprint(w, `{"access_token":"ck_secret","token_type":"Bearer","management_token":"cmt_secret.signed","management_token_type":"Bearer"}`)
 	}))
 	defer srv.Close()
 	var diagnostics bytes.Buffer
@@ -147,6 +150,30 @@ func TestLoginNeverStoresMalformedCredential(t *testing.T) {
 	}
 }
 
+func TestLoginNeverStoresMalformedManagementCredential(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/auth/agent/device" {
+			fmt.Fprintf(w, `{"deviceCode":"device","userCode":"ABCD-2345","verificationUriComplete":%q,"expiresIn":600,"interval":5}`, srvURL(r)+"/verify")
+			return
+		}
+		fmt.Fprint(w, `{"access_token":"ck_secret","token_type":"Bearer","management_token":"cmt_secret.signed","management_token_type":"Basic"}`)
+	}))
+	defer srv.Close()
+	store := &memoryStore{}
+	err := Login(context.Background(), Config{
+		ConsoleURL: srv.URL,
+		HTTPClient: srv.Client(),
+		Store:      store,
+		Open:       func(string) error { return nil },
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid management token") {
+		t.Fatalf("err = %v", err)
+	}
+	if store.creds.APIKey != "" || store.creds.ManagementToken != "" {
+		t.Fatalf("stored malformed credentials %#v", store.creds)
+	}
+}
+
 func TestWriteStatus(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -175,6 +202,9 @@ func TestDecodeCredentialsAcceptsLegacyBareKey(t *testing.T) {
 	}
 	if got := decodeCredentials(`{"apiKey":"ck_json","workspaceName":"Acme"}`); got.APIKey != "ck_json" || got.WorkspaceName != "Acme" {
 		t.Fatalf("json decoded to %#v", got)
+	}
+	if got := decodeCredentials(`{"apiKey":"ck_json","managementToken":"cmt_json.signed"}`); got.ManagementToken != "cmt_json.signed" {
+		t.Fatalf("management token decoded to %#v", got)
 	}
 }
 

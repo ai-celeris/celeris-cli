@@ -25,7 +25,8 @@ Or download a binary archive from the
 ## Configure
 
 The easiest option is browser login. It reuses or provisions your private API
-key named `Celeris CLI` and stores it in your operating system's native keychain:
+key named `Celeris CLI` and a separate read-only management token, then stores
+both in your operating system's native keychain:
 
 ```sh
 celeris login
@@ -36,7 +37,10 @@ prints the resulting API key. In the browser you pick which workspace to mint
 the key into; the key and its spend are bound to that choice. The distinct name
 makes the credential easy to identify, rotate, or revoke in the Console.
 
-The CLI stores the connected workspace's name alongside the key, so you can
+The API key is sent only to the inference endpoint. The management token is
+scoped to the Console's read-only agent context (identity, permissions, balance,
+privacy, and preferences) and is never sent to inference. The CLI stores the
+connected workspace's name alongside both, so you can
 check which workspace the saved credential belongs to at any time:
 
 ```sh

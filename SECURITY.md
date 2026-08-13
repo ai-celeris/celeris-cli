@@ -22,6 +22,11 @@ The CLI reads your API key from `--api-key`, `$CELERIS_API_KEY`, or
 `$OPENAI_API_KEY`, and sends it only as an `Authorization: Bearer` header to
 the configured endpoint.
 
+Browser login also stores a distinct management token in the same OS-keychain
+credential blob. It is scoped to the Console's read-only `/api/agent/context`
+route and must never be sent to the configurable inference endpoint. Conversely,
+the inference API key is never used for Console management reads.
+
 - `--debug` traces the method, URL, User-Agent, and request/response bodies to
   stderr. It deliberately **does not** print the `Authorization` header — but
   request bodies contain your prompts, so redirect that output with care.
