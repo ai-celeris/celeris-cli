@@ -27,14 +27,14 @@ const (
 	maxResponseBytes  = 1 << 20
 )
 
-// Credentials are what a login persists: the minted inference API key plus the
-// workspace the member chose to mint it into at approval time. The workspace
-// fields are display metadata so the CLI can show which workspace the stored
-// key belongs to; they are never sent as an authorization input.
+// Credentials are what a login persists: separate inference and management
+// credentials plus the workspace chosen at approval time. The management token
+// is never sent to the data plane; the API key is never sent to management.
 type Credentials struct {
-	APIKey        string `json:"apiKey"`
-	WorkspaceID   string `json:"workspaceId,omitempty"`
-	WorkspaceName string `json:"workspaceName,omitempty"`
+	APIKey          string `json:"apiKey"`
+	ManagementToken string `json:"managementToken,omitempty"`
+	WorkspaceID     string `json:"workspaceId,omitempty"`
+	WorkspaceName   string `json:"workspaceName,omitempty"`
 }
 
 // CredentialStore is the seam between authorization and durable secret storage.
@@ -120,8 +120,10 @@ type deviceStart struct {
 }
 
 type tokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
+	AccessToken         string `json:"access_token"`
+	TokenType           string `json:"token_type"`
+	ManagementToken     string `json:"management_token"`
+	ManagementTokenType string `json:"management_token_type"`
 	// WorkspaceID and WorkspaceName name the workspace the member chose in the
 	// browser to mint this key into (workspace selection, CEL-209). They are
 	// display metadata, not an authorization input.
@@ -180,17 +182,21 @@ func Login(ctx context.Context, cfg Config) error {
 			if !strings.EqualFold(token.TokenType, "Bearer") || !strings.HasPrefix(token.AccessToken, "ck_") {
 				return errors.New("finish login: console returned an invalid API key")
 			}
+			if token.ManagementToken == "" || !strings.EqualFold(token.ManagementTokenType, "Bearer") {
+				return errors.New("finish login: console returned an invalid management token")
+			}
 			if err := cfg.Store.Save(Credentials{
-				APIKey:        token.AccessToken,
-				WorkspaceID:   token.WorkspaceID,
-				WorkspaceName: token.WorkspaceName,
+				APIKey:          token.AccessToken,
+				ManagementToken: token.ManagementToken,
+				WorkspaceID:     token.WorkspaceID,
+				WorkspaceName:   token.WorkspaceName,
 			}); err != nil {
 				return err
 			}
 			if token.WorkspaceName != "" {
-				fmt.Fprintf(cfg.Out, "Logged in to workspace %q. API key saved to the OS keychain.\n", token.WorkspaceName)
+				fmt.Fprintf(cfg.Out, "Logged in to workspace %q. Credentials saved to the OS keychain.\n", token.WorkspaceName)
 			} else {
-				fmt.Fprintln(cfg.Out, "Logged in. API key saved to the OS keychain.")
+				fmt.Fprintln(cfg.Out, "Logged in. Credentials saved to the OS keychain.")
 			}
 			return nil
 		}
