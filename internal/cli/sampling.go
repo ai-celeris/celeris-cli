@@ -48,3 +48,15 @@ func intIfSet(cmd *cobra.Command, name string, v int) *int {
 	}
 	return nil
 }
+
+// thinkingKwargs returns the chat_template_kwargs payload for a --think-style
+// flag, or nil when the flag was not set. Celeris-1 controls reasoning with a
+// boolean enable_thinking toggle — there is no graded reasoning_effort level —
+// so this is the "effort" knob the API exposes. Leaving the flag unset omits
+// the field entirely, keeping an ordinary request unchanged.
+func thinkingKwargs(cmd *cobra.Command, name string, think bool) map[string]any {
+	if !cmd.Flags().Changed(name) {
+		return nil
+	}
+	return map[string]any{"enable_thinking": think}
+}

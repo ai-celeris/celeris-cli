@@ -87,6 +87,9 @@ an error that does not explain itself.
 celeris q "Three rhymes for shell"
 git diff --staged | celeris q "Write a one-line commit message for this diff:"
 
+# Enable step-by-step reasoning:
+celeris q --think "Is 91 prime? Show your reasoning."
+
 # Full chat completions API:
 celeris chat:completions create -i "Classify as positive or negative: great product" --max-tokens 256
 celeris chat:completions create --system "Answer tersely." -i @question.txt --stream
@@ -112,6 +115,12 @@ piped, so `celeris ... | jq` and `celeris ... | xargs` both do what you mean
 with an explicit `--format json` or `--format text` when it matters. `q` is the
 exception: it prints plain text under `auto` whether or not stdout is a
 terminal, since it exists for pipelines. An explicit `--format` still wins.
+
+`--think` (on `q` and `chat:completions create`) asks the model to reason
+before answering, sending `chat_template_kwargs: {enable_thinking: true}`.
+Celeris exposes reasoning as a boolean toggle — there is no graded
+`reasoning_effort` level — so the flag is on/off. Left unset, the request is
+unchanged.
 
 `--max-tokens` defaults to 2048 and may go up to 8192, which is also the size
 of the context window shared by prompt and completion. Values above the limit

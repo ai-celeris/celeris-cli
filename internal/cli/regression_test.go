@@ -189,6 +189,42 @@ func TestMaxTokensAcceptsAnyValueUpToTheLimit(t *testing.T) {
 	}
 }
 
+func TestThinkSendsChatTemplateKwargs(t *testing.T) {
+	// --think is a chat-only control; assert it on both chat surfaces.
+	for _, args := range [][]string{
+		{"q", "hello", "--no-stream", "--think"},
+		{"chat:completions", "create", "-i", "hello", "--think"},
+	} {
+		srv, body := chatEcho(t)
+		full := append(args, "--base-url", srv.URL, "--api-key", "ck_test")
+		if _, err := runCLI(t, full...); err != nil {
+			t.Fatalf("%v: %v", args[0], err)
+		}
+		var req map[string]any
+		if err := json.Unmarshal(*body, &req); err != nil {
+			t.Fatalf("%v: unmarshal %q: %v", args[0], *body, err)
+		}
+		kwargs, ok := req["chat_template_kwargs"].(map[string]any)
+		if !ok {
+			t.Fatalf("%v: chat_template_kwargs missing or wrong type in %q", args[0], *body)
+		}
+		if kwargs["enable_thinking"] != true {
+			t.Errorf("%v: enable_thinking = %v, want true", args[0], kwargs["enable_thinking"])
+		}
+	}
+}
+
+func TestWithoutThinkOmitsChatTemplateKwargs(t *testing.T) {
+	srv, body := chatEcho(t)
+	if _, err := runCLI(t, "q", "hello",
+		"--base-url", srv.URL, "--api-key", "ck_test", "--no-stream"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(*body), "chat_template_kwargs") {
+		t.Errorf("unset --think still sent chat_template_kwargs: %q", *body)
+	}
+}
+
 func TestCompletionCommandIsDisambiguated(t *testing.T) {
 	root := NewRootCommand()
 	c, _, err := root.Find([]string{"completion"})
