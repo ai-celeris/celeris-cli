@@ -15,6 +15,7 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 		model    string
 		system   string
 		noStream bool
+		think    bool
 		sampling samplingFlags
 	)
 	cmd := &cobra.Command{
@@ -62,15 +63,16 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 			}
 			msgs = append(msgs, api.ChatMessage{Role: "user", Content: prompt})
 			req := api.ChatCompletionRequest{
-				Model:            model,
-				Messages:         msgs,
-				MaxTokens:        sampling.maxTokens,
-				Temperature:      floatIfSet(cmd, "temperature", sampling.temperature),
-				TopP:             floatIfSet(cmd, "top-p", sampling.topP),
-				Seed:             intIfSet(cmd, "seed", sampling.seed),
-				Stop:             sampling.stop,
-				PresencePenalty:  floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
-				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
+				Model:              model,
+				Messages:           msgs,
+				MaxTokens:          sampling.maxTokens,
+				Temperature:        floatIfSet(cmd, "temperature", sampling.temperature),
+				TopP:               floatIfSet(cmd, "top-p", sampling.topP),
+				Seed:               intIfSet(cmd, "seed", sampling.seed),
+				Stop:               sampling.stop,
+				PresencePenalty:    floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
+				FrequencyPenalty:   floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
+				ChatTemplateKwargs: thinkingKwargs(cmd, "think", think),
 			}
 			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
 			client, err := opts.clientForModel(model)
@@ -98,6 +100,7 @@ func newQCommand(opts *rootOptions) *cobra.Command {
 	f.StringVarP(&model, "model", "m", defaultModel(), "model id (default $CELERIS_MODEL, then celeris-1)")
 	f.StringVar(&system, "system", "", "system message")
 	f.BoolVar(&noStream, "no-stream", false, "wait for the full response instead of streaming")
+	f.BoolVar(&think, "think", false, "enable step-by-step reasoning (chat_template_kwargs.enable_thinking)")
 	sampling.register(cmd)
 	return cmd
 }

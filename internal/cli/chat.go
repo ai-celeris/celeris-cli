@@ -33,6 +33,7 @@ func newChatCompletionsCommand(opts *rootOptions) *cobra.Command {
 		messages []string
 		stream   bool
 		user     string
+		think    bool
 		sampling samplingFlags
 	)
 	create := &cobra.Command{
@@ -71,16 +72,17 @@ func newChatCompletionsCommand(opts *rootOptions) *cobra.Command {
 				return usageErrorf("no messages: pass --input/-i, --message/-g, or pipe stdin")
 			}
 			req := api.ChatCompletionRequest{
-				Model:            model,
-				Messages:         msgs,
-				MaxTokens:        sampling.maxTokens,
-				Temperature:      floatIfSet(cmd, "temperature", sampling.temperature),
-				TopP:             floatIfSet(cmd, "top-p", sampling.topP),
-				Seed:             intIfSet(cmd, "seed", sampling.seed),
-				Stop:             sampling.stop,
-				PresencePenalty:  floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
-				FrequencyPenalty: floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
-				User:             user,
+				Model:              model,
+				Messages:           msgs,
+				MaxTokens:          sampling.maxTokens,
+				Temperature:        floatIfSet(cmd, "temperature", sampling.temperature),
+				TopP:               floatIfSet(cmd, "top-p", sampling.topP),
+				Seed:               intIfSet(cmd, "seed", sampling.seed),
+				Stop:               sampling.stop,
+				PresencePenalty:    floatIfSet(cmd, "presence-penalty", sampling.presencePenalty),
+				FrequencyPenalty:   floatIfSet(cmd, "frequency-penalty", sampling.frequencyPenalty),
+				User:               user,
+				ChatTemplateKwargs: thinkingKwargs(cmd, "think", think),
 			}
 			warnModelPathMismatch(cmd.ErrOrStderr(), opts, model)
 			client, err := opts.clientForModel(model)
@@ -111,6 +113,7 @@ func newChatCompletionsCommand(opts *rootOptions) *cobra.Command {
 	f.StringArrayVarP(&messages, "message", "g", nil, "message as role:content (repeatable, in order)")
 	f.BoolVar(&stream, "stream", false, "stream tokens as they are generated (SSE)")
 	f.StringVar(&user, "user", "", "end-user identifier forwarded to the API")
+	f.BoolVar(&think, "think", false, "enable step-by-step reasoning (chat_template_kwargs.enable_thinking)")
 	sampling.register(create)
 
 	group.AddCommand(create)

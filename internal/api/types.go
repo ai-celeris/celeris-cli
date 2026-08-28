@@ -27,6 +27,10 @@ type ChatCompletionRequest struct {
 	User             string         `json:"user,omitempty"`
 	Stream           bool           `json:"stream,omitempty"`
 	StreamOptions    *StreamOptions `json:"stream_options,omitempty"`
+	// ChatTemplateKwargs carries model-template controls such as
+	// {"enable_thinking": true} — the OpenAI-compatible way Celeris-1 toggles
+	// reasoning. Sent only when set; omitted requests are byte-for-byte unchanged.
+	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 }
 
 // CompletionRequest is the body for POST /v1/completions.
