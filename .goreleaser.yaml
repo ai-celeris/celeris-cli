@@ -47,7 +47,9 @@ changelog:
       - "^ci:"
 
 homebrew_casks:
-  - name: celeris
+  # Cask token is celeris-cli so the bare `celeris` token is free for the
+  # Celeris desktop app in the same tap; the installed binary is still `celeris`.
+  - name: celeris-cli
     repository:
       owner: ai-celeris
       name: homebrew-tools
